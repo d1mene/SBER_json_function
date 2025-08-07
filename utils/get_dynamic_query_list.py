@@ -1,10 +1,11 @@
-def get_dynamic_query_list(hierarchy, query):
+def get_dynamic_query_list(hierarchy, query, keys_order):
     """ Функция, возвращающая список словарей всевозможных комбинаций 
     из соответсвующих значений переданного объекта
 
     Аргументы:
         hierarchy (dict): структура, по которой ведется поиск
         query (dict): запрос
+        keys_order (list): порядок ключей в иерархии
     """
     # функция, итерирующаяся по уровням и собирающая комбинации
     def iter_levels(hierarchy, target_level, branch=[], level_num=0):
@@ -13,7 +14,7 @@ def get_dynamic_query_list(hierarchy, query):
             driver = branch[-1]
             # на всякий случай - если показания счетчика нечисловые
             if isinstance(hierarchy, dict):
-                return [dict(zip(query_keys, branch))]
+                return [dict(zip(keys_order, branch))]
             return []
         
         answer = []
@@ -22,7 +23,7 @@ def get_dynamic_query_list(hierarchy, query):
         
         if isinstance(hierarchy, dict) and val in hierarchy:
             # сначала добавляем ветку самого значения
-            answer += iter_levels(hierarchy[val], target_level, branch+[val], level_num+1) + answer
+            answer += iter_levels(hierarchy[val], target_level, branch+[val], level_num+1)
             # если оно вдруг None, пробегаемся по "вершинам" на том же уровне
             # и добавляем их значения в начало списка
             if val == 'None':
@@ -34,9 +35,8 @@ def get_dynamic_query_list(hierarchy, query):
         
         return answer
     # создаем отсортированные списки ключей и значений
-    query_keys = sorted(query.keys(), key=lambda x: int(x.split('_')[1]))
-    query_values = [query[key] for key in query_keys]
+    query_values = [query[key] for key in keys_order]
     # находим длину
-    n = len(query_keys)
+    n = len(query_values)
     # вызываем функцию и возвращаем ее вывод
     return iter_levels(hierarchy, n)
