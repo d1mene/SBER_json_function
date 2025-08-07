@@ -7,7 +7,7 @@ def get_dynamic_query_list(hierarchy, query, keys_order):
         query (dict): запрос
         keys_order (list): порядок ключей в иерархии
     """
-    # функция, итерирующаяся по уровням и собирающая комбинации
+    # функция, итерирующаяся по уровням и собирающая комбинации    
     def iter_levels(hierarchy, target_level, branch=[], level_num=0):
         # критерий остановки - достижение уровня n
         if level_num == target_level:
@@ -18,25 +18,43 @@ def get_dynamic_query_list(hierarchy, query, keys_order):
             return []
         
         answer = []
-        # значение на данном уровне
-        val = query_values[level_num]
-        
-        if isinstance(hierarchy, dict) and val in hierarchy:
-            # сначала добавляем ветку самого значения
-            answer += iter_levels(hierarchy[val], target_level, branch+[val], level_num+1)
-            # если оно вдруг None, пробегаемся по "вершинам" на том же уровне
-            # и добавляем их значения в начало списка
-            if val == 'None':
-                for key in hierarchy.keys():
-                    if key != val:
-                        answer = iter_levels(hierarchy[key], target_level, branch+[key], level_num+1)\
-                                + answer
+        # если уровень не определен - проводим поиск пути на данном уровне
+        if level_num in missed_levels:
+            for key in hierarchy.keys():
+                answer += iter_levels(hierarchy[key], target_level, branch+[key], level_num+1)
+        else: 
+            # значение на данном уровне
+            val = query_values[level_num]
+            
+            if isinstance(hierarchy, dict) and val in hierarchy:
+                # сначала добавляем ветку самого значения
+                answer += iter_levels(hierarchy[val], target_level, branch+[val], level_num+1)
+                # если оно вдруг None, пробегаемся по "вершинам" на том же уровне
+                # и добавляем их значения в начало списка
+                if val == 'None':
+                    for key in hierarchy.keys():
+                        if key != val:
+                            answer = iter_levels(hierarchy[key], target_level, branch+[key], level_num+1)\
+                                    + answer
 
         
         return answer
-    # создаем отсортированные списки ключей и значений
-    query_values = [query[key] for key in keys_order]
-    # находим длину
+    
+    
+    # создаем отсортированные списки значений по уровням
+    query_values = [
+        query[key] if key in query.keys() 
+        else None
+        for key in keys_order
+    ]
+
+    # создаем список номеров пропущенных уровней
+    missed_levels = [
+        level for level in range(len(keys_order))
+        if keys_order[level] not in query.keys()
+    ]
+    
+    # находим длину запроса
     n = len(query_values)
     # вызываем функцию и возвращаем ее вывод
     return iter_levels(hierarchy, n)
