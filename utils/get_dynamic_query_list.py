@@ -1,17 +1,21 @@
 # функция, итерирующаяся по уровням и собирающая комбинации    
-def iter_levels(hierarchy, keys_order, target_level, missed_levels, query_values, branch=[], level_num=0):
+def iter_levels(hierarchy, keys_order, target_level, missed_levels, query_values, branch={}, level_num=0):
+    if not isinstance(hierarchy, dict):
+        return []
     # критерий остановки - достижение уровня n
     if level_num == target_level:
-        if isinstance(hierarchy, dict):
-            return [dict(zip(keys_order, branch))]
-        return []
+            return [branch]
     
     answer = []
     # если уровень не определен - проводим поиск пути на данном уровне
     if level_num in missed_levels:
         for key in hierarchy.keys():
+            # добавляем новую ветку в словарь-ответ
+            new_branch = branch.copy()
+            new_branch[keys_order[level_num]] = key
+            
             answer += iter_levels(hierarchy[key], keys_order, target_level, missed_levels, query_values,
-                                  branch+[key], level_num+1)
+                                  new_branch, level_num+1)
     else:
         # значение на данном уровне
         val_list = query_values[level_num]
@@ -21,18 +25,25 @@ def iter_levels(hierarchy, keys_order, target_level, missed_levels, query_values
         
         if isinstance(hierarchy, dict):
             for val in val_list:
-                if val in hierarchy:
-                    # сначала добавляем ветку самого значения
-                    answer += iter_levels(hierarchy[val], keys_order, target_level, missed_levels, query_values,
-                                          branch+[val], level_num+1)
-                    # если оно вдруг None, пробегаемся по "вершинам" на том же уровне
-                    # и добавляем их значения в начало списка
-                    if val == 'None':
-                        for key in hierarchy.keys():
-                            if key != val:
-                                answer = iter_levels(hierarchy[key], keys_order, target_level, 
-                                                     missed_levels, query_values,
-                                                    branch+[key], level_num+1) + answer        
+                # добавляем новую ветку в словарь-ответ
+                new_branch = branch.copy()
+                new_branch[keys_order[level_num]] = val
+                
+                # сначала добавляем ветку самого значения
+                answer += iter_levels(hierarchy.get(val), keys_order, target_level, missed_levels, query_values,
+                                        new_branch, level_num+1)
+                # если оно вдруг None, пробегаемся по "вершинам" на том же уровне
+                # и добавляем их значения в начало списка
+                if val == 'None':
+                    for key in hierarchy.keys():
+                        if key != val:
+                            # добавляем новую ветку в словарь-ответ
+                            new_branch = branch.copy()
+                            new_branch[keys_order[level_num]] = key
+                            
+                            answer = iter_levels(hierarchy[key], keys_order, target_level, 
+                                                    missed_levels, query_values,
+                                                    new_branch, level_num+1) + answer        
     return answer
 
 
