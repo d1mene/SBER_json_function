@@ -38,7 +38,9 @@ def get_query_token(query_terms, window=2):
         doc.append(token)
     return doc
 
-def long_fuzzy_match(query, candidate_long_terms, window=5, limit=5, score_cutoff_wratio=70, score_cutoff_dl=70):
+def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial_token_set_ratio, 
+                     long_scorer_second=fuzz.token_set_ratio, window=5, limit=5, 
+                     score_cutoff_first=70, score_cutoff_second=70):
     query = norm(query)
     query_windows = get_query_token(query.split(), window)
     print(query_windows)
@@ -47,23 +49,20 @@ def long_fuzzy_match(query, candidate_long_terms, window=5, limit=5, score_cutof
     for i in range(len(query_windows)):
         matches = process.extract(query_windows[i], 
                                   candidate_long_terms, 
-                                  scorer=fuzz.partial_token_set_ratio,
-                                  score_cutoff=score_cutoff_wratio, 
+                                  scorer=long_scorer_first,
+                                  score_cutoff=score_cutoff_first, 
                                   limit=limit)
         print(matches)
         
         if matches:
-            matches_list = [m[0] for m in matches]
-            # key_words.update(matches_list)
-            
-            
+            matches_list = [m[0] for m in matches]            
             sub_query_windows = get_query_token(query_windows[i].split(), max(len(m[0].split()) for m in matches))
             
             for j in range(len(sub_query_windows)):
                 sub_matches = process.extract(sub_query_windows[j], 
                                         matches_list, 
-                                        scorer=fuzz.token_set_ratio,
-                                        score_cutoff=score_cutoff_dl, 
+                                        scorer=long_scorer_second,
+                                        score_cutoff=score_cutoff_second, 
                                         limit=limit)
                 if sub_matches:
                     print('Sub:', sub_matches)
@@ -71,7 +70,7 @@ def long_fuzzy_match(query, candidate_long_terms, window=5, limit=5, score_cutof
                     
     return list(key_words)
 
-def short_fuzzy_match(query, candidate_short_terms, limit=5, score_cutoff=70):
+def short_fuzzy_match(query, candidate_short_terms, short_scorer=jaro_winkler_scorer, limit=5, score_cutoff=70):
     query = norm(query)
     query_windows = query.split()
     print(query_windows)
@@ -80,7 +79,7 @@ def short_fuzzy_match(query, candidate_short_terms, limit=5, score_cutoff=70):
     for word in query_windows:
         matches = process.extract(word, 
                                   candidate_short_terms, 
-                                  scorer=jaro_winkler_scorer,
+                                  scorer=short_scorer,
                                   score_cutoff=score_cutoff, 
                                   limit=limit)
         print(matches)
@@ -111,7 +110,7 @@ def iter_path(query, hierarchy, final_terms, levels, lvl=0):
     elif isinstance(hierarchy, list):
         for val in hierarchy:
             if val in final_terms:
-                query[levels[lvl]] = key
+                query[levels[lvl]] = val
                 break
     else:
         raise ValueError('Неправильный формат json!')
@@ -126,18 +125,57 @@ def build_path(final_terms, hierarchy, norm2keys, levels):
 
 
 
-def process_query(query, all_terms, norm2keys, hierarchy, levels):
+def process_query(query, all_terms, norm2keys, hierarchy, levels, 
+                  long_score_cutoff_first=70, long_score_cutoff_second=81, short_score_cutoff=90, window=5,
+                  long_scorer_first=fuzz.partial_token_set_ratio, long_scorer_second=fuzz.token_set_ratio,
+                  short_scorer=jaro_winkler_scorer):
+    
+    """Функция, обрабатывающая входящий query. 
+    Для корректной работы нужно сначала получить all_terms и norm2keys,
+    используя метод fit_hierarchy на нужной иерархии.
+
+    Аргументы:
+        query (str): входящий запрос для обработки.
+        all_terms (list): список всех значений (нормализованных).
+        norm2keys (dict): словарь "нормализованный ключ - значение".
+        hierarchy (dict): структура, по которой ведется поиск.
+        levels (list): названия уровней.
+        long_score_cutoff_first (int, optional): Порог для первой функции обработки длинных ключей (по умолчанию 70).
+        long_score_cutoff_second (int, optional): Порог для второй функции обработки длинных ключей (по умолчанию 81).
+        short_score_cutoff (int, optional): Порог для функции обработки коротких ключей (по умочланию 90).
+        window (int, optional): Размер окна для обработки длинных ключей (по умолчанию 5).
+        long_scorer_first (func(s1: str, s2: str, score_cutoff=int), optional): 
+            Скорер для первого обхода запроса в поиске длинных ключей (по умолчанию fuzz.partial_token_set_ratio).
+        long_scorer_second (func(s1: str, s2: str, score_cutoff=int), optional): 
+            Скорер для второго обхода запроса в поиске длинных ключей (по умолчанию fuzz.token_set_ratio).
+        short_scorer (func(s1: str, s2: str, score_cutoff=int), optional): 
+            Скорер для обхода запроса в поиске коротких ключей (по умолчанию jaro_winkler_scorer).
+
+    Возвращает:
+        dict: словарь с заполненными уровнями, если поступил правильный запрос
+        None: пустое значение, если поступил неверный запрос
+    """
+    
     long_terms = [term for term in all_terms if len(term.split()) > 1]
     short_terms = [term for term in all_terms if len(term.split()) == 1]
 
-    long_terms = long_fuzzy_match(query, long_terms, score_cutoff_wratio=70, score_cutoff_dl=81)
+    long_terms = long_fuzzy_match(query, 
+                                  long_terms, 
+                                  window=window, 
+                                  long_scorer_first=long_scorer_first, 
+                                  long_scorer_second=long_scorer_second,
+                                  score_cutoff_first=long_score_cutoff_first,
+                                  score_cutoff_second=long_score_cutoff_second)
     print('---', long_terms)
 
-    short_terms = short_fuzzy_match(query, short_terms, score_cutoff=90)
+    short_terms = short_fuzzy_match(query, short_terms, short_scorer=short_scorer, score_cutoff=short_score_cutoff)
     print('---', short_terms)
 
     final_terms = long_terms + short_terms
     print('\nFINAL TERMS:', final_terms)
+    if not final_terms:
+        print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
+        return
     
     json_values_df = pd.DataFrame(np.zeros((len(all_terms), len(all_terms))), index=all_terms, columns=all_terms)
     update_context_matrix(json_values_df, hierarchy)

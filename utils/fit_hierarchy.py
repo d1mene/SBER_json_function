@@ -11,16 +11,16 @@ def norm(s: str) -> str:
         s = s.replace(p, '')
     return s
 
+# функция получения синонимов   
+def get_synonyms(key):
+        return [p.strip() for p in key.split(';') if p.strip()]
+
 def add_term(term2nodes, canonical, synonyms, node_id, kp):
         c = norm(canonical)
         term2nodes[c].add(node_id)
         # добавляем синонимы/аббревиатуры в KeywordProcessor
         for s in synonyms:
             kp.add_keyword(norm(s), c)
-
-# функция получения синонимов   
-def get_synonyms(key):
-        return [p.strip() for p in key.split(';') if p.strip()]
     
 def build_index(tree):
     all_terms = set()
