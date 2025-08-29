@@ -6,7 +6,18 @@ from rapidfuzz import process, fuzz
 
 
 
-def update_context_matrix(values_df, hierarchy, branch=set()): 
+def update_context_matrix(values_df, hierarchy, branch=set()):
+    """Функция, наполняющая матрицу контекста в соответствие иерархии
+
+   Аргументы:
+        values_df (pd.DataFrame): сопряженная матрица всех ключей иерархии
+        hierarchy (dict): иерархия
+        branch (set): ветка контекста. 
+
+    Raises:
+        TypeError: Неверный формат JSON
+    """
+    
     if isinstance(hierarchy, dict):
         for key in hierarchy.keys():
             branch_copy = branch.copy()
@@ -28,7 +39,7 @@ def check_context_compatibility(context_matrix, terms):
     return True
     
     
-    
+# функция для возврата токенов размером window слов
 def get_query_token(query_terms, window=2):
     doc = []
     for i in range(len(query_terms)-window+1):
@@ -38,6 +49,7 @@ def get_query_token(query_terms, window=2):
         doc.append(token)
     return doc
 
+# функция для мэтча длинных ключей
 def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial_token_set_ratio, 
                      long_scorer_second=fuzz.token_set_ratio, window=5, limit=5, 
                      score_cutoff_first=70, score_cutoff_second=70):
@@ -70,6 +82,7 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
                     
     return list(key_words)
 
+# функция для мэтча коротких ключей
 def short_fuzzy_match(query, candidate_short_terms, short_scorer=jaro_winkler_scorer, limit=5, score_cutoff=70):
     query = norm(query)
     query_windows = query.split()
@@ -91,7 +104,7 @@ def short_fuzzy_match(query, candidate_short_terms, short_scorer=jaro_winkler_sc
     return list(key_words)
 
 
-
+# вспомогательная функция для создания запроса
 def iter_path(query, hierarchy, final_terms, levels, lvl=0):
     if isinstance(hierarchy, dict):
         key_found = False
@@ -115,7 +128,7 @@ def iter_path(query, hierarchy, final_terms, levels, lvl=0):
     else:
         raise ValueError('Неправильный формат json!')
             
-
+# функция, составляющая конечный запрос
 def build_path(final_terms, hierarchy, norm2keys, levels):
     query = {lvl: 'None' for lvl in levels}
     final_terms = [norm2keys[key] for key in final_terms]

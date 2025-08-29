@@ -15,13 +15,7 @@ def norm(s: str) -> str:
 def get_synonyms(key):
         return [p.strip() for p in key.split(';') if p.strip()]
 
-def add_term(term2nodes, canonical, synonyms, node_id, kp):
-        c = norm(canonical)
-        term2nodes[c].add(node_id)
-        # добавляем синонимы/аббревиатуры в KeywordProcessor
-        for s in synonyms:
-            kp.add_keyword(norm(s), c)
-    
+# функция нахождения списка всех терминов и словаря "нормализованный ключ - исходный ключ" 
 def build_index(tree):
     all_terms = set()
     norm2keys = {}
@@ -49,6 +43,15 @@ def build_index(tree):
     return list(all_terms), norm2keys
 
 def fit_hierarchy(hierarchy):
+    """Обход дерева для получения информации о нем
+
+    Аргументы:
+        hierarchy (dict): иерархия
+
+    Возвращает:
+        list: список всех нормализованных ключей иерархии
+        dict: словарь "нормализованный ключ - исходный ключ"
+    """
     all_terms, norm2keys = build_index(hierarchy)
     print(all_terms)
     print(norm2keys)
