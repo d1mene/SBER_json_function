@@ -31,12 +31,13 @@ def update_context_matrix(values_df, hierarchy, branch=set()):
             values_df.loc[branch_copy, branch_copy] = 1
     else:
         raise TypeError('Неправильный формат JSON!')
-    
-def check_context_compatibility(context_matrix, terms):    
+
+# функция, проверяющая контекст запроса
+def check_context_compatibility(context_matrix, terms): 
     if not terms or not context_matrix.loc[terms, terms].all().all():
-        print('Ошибка: Неверный контекст запроса!')
         return False
     return True
+
 
 def update_similarity_matrix(values_df, scorer):
     """Функция, наполняющая матрицу схожести слов
@@ -58,7 +59,18 @@ def update_similarity_matrix(values_df, scorer):
     
     return values_df
     
-def check_similarity_compatibility(similarity_matrix, query, terms, threshold):    
+def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
+    """Функция, разрешающая конфликты между полученными запросами.
+
+    Аргументы:
+        similarity_matrix (pd.DataFrame): матрица схожести
+        query (str): исходный запрос
+        terms (list): список терминов для проверки
+        threshold (int): порог показателя схожести
+
+    Returns:
+        list: список терминов с разрешенным конфликтом
+    """
     final_terms = []
     sim_issue = (similarity_matrix >= threshold).sum().sum() > similarity_matrix.shape[0]
     
@@ -84,7 +96,7 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
                 used_list.append(keys)
                 final_terms.append(scorer_rank[0][0])
 
-    return final_terms
+    return list(set(final_terms))
 
 
     
@@ -214,6 +226,9 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
             Скорер для второго обхода запроса в поиске длинных ключей (по умолчанию fuzz.token_set_ratio).
         short_scorer (func(s1: str, s2: str, score_cutoff=int), optional): 
             Скорер для обхода запроса в поиске коротких ключей (по умолчанию jaro_winkler_scorer).
+        sim_threshold (int, optional): Порог для меры схожести двух ключей (по умолчанию 70)
+        sim_scorer (func(s1: str, s2: str, score_cutoff=int), optional): 
+            Скорер для функции схожести ключей (по умолчанию damerau_levenshtein_scorer)
 
     Возвращает:
         dict: словарь с заполненными уровнями, если поступил правильный запрос
@@ -251,6 +266,7 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
         chosen_terms = check_similarity_compatibility(similarity_matrix, query, chosen_terms, threshold=sim_threshold)
         
         if not check_context_compatibility(json_values_df, chosen_terms):
+            print('Ошибка: Неверный контекст запроса!')
             return
     print('\nFINAL TERMS:', chosen_terms)
     
