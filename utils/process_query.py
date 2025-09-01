@@ -33,10 +33,60 @@ def update_context_matrix(values_df, hierarchy, branch=set()):
         raise TypeError('Неправильный формат JSON!')
     
 def check_context_compatibility(context_matrix, terms):    
-    if not context_matrix.loc[terms, terms].all().all():
+    if not terms or not context_matrix.loc[terms, terms].all().all():
         print('Ошибка: Неверный контекст запроса!')
         return False
     return True
+
+def update_similarity_matrix(values_df, scorer):
+    """Функция, наполняющая матрицу схожести слов
+
+   Аргументы:
+        values_df (pd.DataFrame): сопряженная матрица всех ключей иерархии
+        hierarchy (dict): иерархия
+        branch (set): ветка контекста. 
+
+    Raises:
+        TypeError: Неверный формат JSON
+    """
+    terms = list(values_df.columns)
+    
+    for col in values_df.columns:
+        matches=process.extract(col, terms, scorer=scorer, limit=None)
+        matches = pd.Series([m[1] for m in matches], index=[m[0] for m in matches])
+        values_df[col] = matches
+    
+    return values_df
+    
+def check_similarity_compatibility(similarity_matrix, query, terms, threshold):    
+    final_terms = []
+    sim_issue = (similarity_matrix >= threshold).sum().sum() > similarity_matrix.shape[0]
+    
+    if sim_issue:
+        sim_df = similarity_matrix.loc[terms, terms]
+        sim_df = sim_df[sim_df > threshold]
+        print(sim_df)
+        sim_list = [list(sim_df[key].dropna().index) for key in sim_df.columns]
+        used_list = []
+        print(sim_list)
+        for keys in sim_list:
+            if len(keys) < 2:
+                used_list.append(keys)
+                final_terms.append(keys[0])
+                continue
+            
+            if keys not in used_list:
+                scorer_rank = process.extract(query, keys, scorer=damerau_levenshtein_scorer, score_cutoff=0, limit=None)
+                print(scorer_rank)
+                if len(scorer_rank) >= 2 and scorer_rank[0][1] - scorer_rank[1][1] < 2:
+                    print('Ошибка: Неоднозначный запрос. Пожалуйста, исправьте опечатки или уточните Ваш запрос.')
+                    return
+                used_list.append(keys)
+                final_terms.append(scorer_rank[0][0])
+
+    return final_terms
+
+
     
     
 # функция для возврата токенов размером window слов
@@ -53,6 +103,7 @@ def get_query_token(query_terms, window=2):
 def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial_token_set_ratio, 
                      long_scorer_second=fuzz.token_set_ratio, window=5, limit=5, 
                      score_cutoff_first=70, score_cutoff_second=70):
+    
     query = norm(query)
     query_windows = get_query_token(query.split(), window)
     print(query_windows)
@@ -67,7 +118,7 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
         print(matches)
         
         if matches:
-            matches_list = [m[0] for m in matches]            
+            matches_list = [m[0] for m in matches]
             sub_query_windows = get_query_token(query_windows[i].split(), max(len(m[0].split()) for m in matches))
             
             for j in range(len(sub_query_windows)):
@@ -138,10 +189,10 @@ def build_path(final_terms, hierarchy, norm2keys, levels):
 
 
 
-def process_query(query, all_terms, norm2keys, hierarchy, levels, 
+def process_query(query, all_terms, norm2keys, hierarchy, levels,
                   long_score_cutoff_first=70, long_score_cutoff_second=81, short_score_cutoff=90, window=5,
                   long_scorer_first=fuzz.partial_token_set_ratio, long_scorer_second=fuzz.token_set_ratio,
-                  short_scorer=jaro_winkler_scorer):
+                  short_scorer=jaro_winkler_scorer, sim_threshold=70, sim_scorer=damerau_levenshtein_scorer):
     
     """Функция, обрабатывающая входящий query. 
     Для корректной работы нужно сначала получить all_terms и norm2keys,
@@ -184,20 +235,26 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
     short_terms = short_fuzzy_match(query, short_terms, short_scorer=short_scorer, score_cutoff=short_score_cutoff)
     print('---', short_terms)
 
-    final_terms = long_terms + short_terms
-    print('\nFINAL TERMS:', final_terms)
-    if not final_terms:
+    chosen_terms = long_terms + short_terms
+    print('\nCHOSEN TERMS:', chosen_terms)
+    if not chosen_terms:
         print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
         return
     
     json_values_df = pd.DataFrame(np.zeros((len(all_terms), len(all_terms))), index=all_terms, columns=all_terms)
     update_context_matrix(json_values_df, hierarchy)
-    json_values_df
     
-    if not check_context_compatibility(json_values_df, final_terms):
-        return
+    if not check_context_compatibility(json_values_df, chosen_terms):
+        similarity_matrix = json_values_df.copy()
+        update_similarity_matrix(similarity_matrix, sim_scorer)
+        
+        chosen_terms = check_similarity_compatibility(similarity_matrix, query, chosen_terms, threshold=sim_threshold)
+        
+        if not check_context_compatibility(json_values_df, chosen_terms):
+            return
+    print('\nFINAL TERMS:', chosen_terms)
     
-    final_query = build_path(final_terms, hierarchy, norm2keys, levels)
+    final_query = build_path(chosen_terms, hierarchy, norm2keys, levels)
     
     return final_query
     
