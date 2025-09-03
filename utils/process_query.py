@@ -4,34 +4,6 @@ from .fit_hierarchy import *
 from .str_distance_metrics import *
 from rapidfuzz import process, fuzz
 
-
-
-def update_context_matrix(values_df, hierarchy, branch=set()):
-    """Функция, наполняющая матрицу контекста в соответствие иерархии
-
-   Аргументы:
-        values_df (pd.DataFrame): сопряженная матрица всех ключей иерархии
-        hierarchy (dict): иерархия
-        branch (set): ветка контекста. 
-
-    Raises:
-        TypeError: Неверный формат JSON
-    """
-    
-    if isinstance(hierarchy, dict):
-        for key in hierarchy.keys():
-            branch_copy = branch.copy()
-            branch_copy.add(norm(key))
-            update_context_matrix(values_df, hierarchy[key], branch_copy)
-    elif isinstance(hierarchy, list):
-        for val in hierarchy:
-            branch_copy = branch.copy()
-            branch_copy.add(norm(val))
-            branch_copy = list(branch_copy)
-            values_df.loc[branch_copy, branch_copy] = 1
-    else:
-        raise TypeError('Неправильный формат JSON!')
-
 # функция, проверяющая контекст запроса
 def check_context_compatibility(context_matrix, terms): 
     if not terms or not context_matrix.loc[terms, terms].all().all():
@@ -59,7 +31,7 @@ def update_similarity_matrix(values_df, scorer):
     
     return values_df
     
-def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
+def check_similarity_compatibility(similarity_matrix, query, threshold):
     """Функция, разрешающая конфликты между полученными запросами.
 
     Аргументы:
@@ -75,12 +47,11 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
     sim_issue = (similarity_matrix >= threshold).sum().sum() > similarity_matrix.shape[0]
     
     if sim_issue:
-        sim_df = similarity_matrix.loc[terms, terms]
         sim_df = sim_df[sim_df > threshold]
         print(sim_df)
         sim_list = [list(sim_df[key].dropna().index) for key in sim_df.columns]
         used_list = []
-        print(sim_list)
+        
         for keys in sim_list:
             if len(keys) < 2:
                 used_list.append(keys)
@@ -98,8 +69,6 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
 
     return list(set(final_terms))
 
-
-    
     
 # функция для возврата токенов размером window слов
 def get_query_token(query_terms, window=2):
@@ -200,14 +169,13 @@ def build_path(final_terms, hierarchy, norm2keys, levels):
     return query
 
 
-
-def process_query(query, all_terms, norm2keys, hierarchy, levels,
+def process_query(query, all_terms, norm2keys, hierarchy, levels, context_df,
                   long_score_cutoff_first=70, long_score_cutoff_second=81, short_score_cutoff=90, window=5,
                   long_scorer_first=fuzz.partial_token_set_ratio, long_scorer_second=fuzz.token_set_ratio,
                   short_scorer=jaro_winkler_scorer, sim_threshold=70, sim_scorer=damerau_levenshtein_scorer):
     
     """Функция, обрабатывающая входящий query. 
-    Для корректной работы нужно сначала получить all_terms и norm2keys,
+    Для корректной работы нужно сначала получить all_terms, norm2keys и context_df,
     используя метод fit_hierarchy на нужной иерархии.
 
     Аргументы:
@@ -216,6 +184,7 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
         norm2keys (dict): словарь "нормализованный ключ - значение".
         hierarchy (dict): структура, по которой ведется поиск.
         levels (list): названия уровней.
+        context_df (pd.DataFrame): таблица контекстной допустимости ключей
         long_score_cutoff_first (int, optional): Порог для первой функции обработки длинных ключей (по умолчанию 70).
         long_score_cutoff_second (int, optional): Порог для второй функции обработки длинных ключей (по умолчанию 81).
         short_score_cutoff (int, optional): Порог для функции обработки коротких ключей (по умочланию 90).
@@ -259,16 +228,13 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
         print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
         return
     
-    json_values_df = pd.DataFrame(np.zeros((len(all_terms), len(all_terms))), index=all_terms, columns=all_terms)
-    update_context_matrix(json_values_df, hierarchy)
-    
-    if not check_context_compatibility(json_values_df, chosen_terms):
-        similarity_matrix = json_values_df.copy()
+    if not check_context_compatibility(context_df, chosen_terms):
+        similarity_matrix = context_df.loc[chosen_terms, chosen_terms]
         update_similarity_matrix(similarity_matrix, sim_scorer)
         
         chosen_terms = check_similarity_compatibility(similarity_matrix, query, chosen_terms, threshold=sim_threshold)
         
-        if not check_context_compatibility(json_values_df, chosen_terms):
+        if not check_context_compatibility(context_df, chosen_terms):
             print('Ошибка: Неверный контекст запроса!')
             return
     print('\nFINAL TERMS:', chosen_terms)
