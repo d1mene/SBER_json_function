@@ -237,6 +237,9 @@ def process_query(query, all_terms, norm2keys, hierarchy, levels,
     
     long_terms = [term for term in all_terms if len(term.split()) > 1]
     short_terms = [term for term in all_terms if len(term.split()) == 1]
+    
+    if len(query.split()) < 5:
+        window = 3
 
     long_terms = long_fuzzy_match(query, 
                                   long_terms, 

@@ -53,7 +53,5 @@ def fit_hierarchy(hierarchy):
         dict: словарь "нормализованный ключ - исходный ключ"
     """
     all_terms, norm2keys = build_index(hierarchy)
-    print(all_terms)
-    print(norm2keys)
     return all_terms, norm2keys
 
