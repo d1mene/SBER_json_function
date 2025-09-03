@@ -77,6 +77,21 @@ def get_dynamic_query_list(hierarchy, query, keys_order):
         else None
         for key in keys_order
     ]
+    
+    word = None
+    target_lvl = -1
+    
+    for i, word in enumerate(query_values[::-1]):
+        if word != 'None':
+            target_lvl = i
+            break
+        
+    n = len(query_values)
+    
+    if target_lvl != -1 and target_lvl != n-1:
+        target_lvl = n-target_lvl
+    else:
+        return query     
 
     # создаем список номеров пропущенных уровней
     missed_levels = [
@@ -84,7 +99,5 @@ def get_dynamic_query_list(hierarchy, query, keys_order):
         if keys_order[level] not in query.keys()
     ]
 
-    # находим длину запроса
-    n = len(query_values)
     # вызываем функцию прохождение дерева и возвращаем ее вывод
-    return iter_levels(hierarchy, keys_order, n, missed_levels, query_values)
+    return iter_levels(hierarchy, keys_order, target_lvl, missed_levels, query_values)
