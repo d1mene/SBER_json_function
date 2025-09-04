@@ -122,9 +122,9 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
     sim_issue = (similarity_matrix >= threshold).sum().sum() > similarity_matrix.shape[0]
     
     if sim_issue:
-        sim_df = sim_df.loc[terms, terms]
+        sim_df = similarity_matrix.loc[terms, terms]
         sim_df = sim_df[sim_df > threshold]
-        print(sim_df)
+
         sim_list = [list(sim_df[key].dropna().index) for key in sim_df.columns]
         used_list = []
         
@@ -136,7 +136,7 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
             
             if keys not in used_list:
                 scorer_rank = process.extract(query, keys, scorer=damerau_levenshtein_scorer, score_cutoff=0, limit=None)
-                print(scorer_rank)
+
                 if len(scorer_rank) >= 2 and scorer_rank[0][1] - scorer_rank[1][1] < 2:
                     print('Ошибка: Неоднозначный запрос. Пожалуйста, исправьте опечатки или уточните Ваш запрос.')
                     return
@@ -163,7 +163,6 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
     
     query = norm(query)
     query_windows = get_query_token(query.split(), window)
-    print(query_windows)
     key_words = set()
     
     for i in range(len(query_windows)):
@@ -172,7 +171,6 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
                                   scorer=long_scorer_first,
                                   score_cutoff=score_cutoff_first, 
                                   limit=limit)
-        print(matches)
         
         if matches:
             matches_list = [m[0] for m in matches]
@@ -185,7 +183,6 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
                                         score_cutoff=score_cutoff_second, 
                                         limit=limit)
                 if sub_matches:
-                    print('Sub:', sub_matches)
                     key_words.update([m[0] for m in sub_matches])
                     
     return list(key_words)
@@ -194,7 +191,7 @@ def long_fuzzy_match(query, candidate_long_terms, long_scorer_first=fuzz.partial
 def short_fuzzy_match(query, candidate_short_terms, short_scorer=jaro_winkler_scorer, limit=5, score_cutoff=70):
     query = norm(query)
     query_windows = query.split()
-    print(query_windows)
+
     key_words = set()
     
     for word in query_windows:
@@ -203,7 +200,6 @@ def short_fuzzy_match(query, candidate_short_terms, short_scorer=jaro_winkler_sc
                                   scorer=short_scorer,
                                   score_cutoff=score_cutoff, 
                                   limit=limit)
-        print(matches)
         
         if matches:
             matches_list = [m[0] for m in matches]
@@ -240,7 +236,7 @@ def iter_path(query, hierarchy, final_terms, levels, lvl=0):
 def build_path(final_terms, hierarchy, norm2keys, levels):
     query = {lvl: 'None' for lvl in levels}
     final_terms = [norm2keys[key] for key in final_terms]
-    print(final_terms)
+
     iter_path(query, hierarchy, final_terms, levels, lvl=0)
     return query
 
@@ -248,13 +244,13 @@ def build_path(final_terms, hierarchy, norm2keys, levels):
 class KeywordsQueryProcessor():
     def __init__(self):
         
-        self.hierarchy = None
-        self.all_terms = None
-        self.norm2keys = None
-        self.context_df = None
-        self.similarity_matrix = None
-        self.sim_scorer = None
-        self.levels = None
+        self.__hierarchy = None
+        self.__all_terms = None
+        self.__norm2keys = None
+        self.__context_df = None
+        self.__similarity_matrix = None
+        self.__sim_scorer = None
+        self.__levels = None
         
         
     def fit(self, hierarchy, levels):
@@ -269,15 +265,15 @@ class KeywordsQueryProcessor():
             dict: словарь "нормализованный ключ - исходный ключ"
             pd.DataFrame: контекстная матрица
         """
-        all_terms, norm2keys, context_df = build_index(hierarchy)
+        all_terms, norm2keys = build_index(hierarchy)
         context_df = pd.DataFrame(np.zeros((len(all_terms), len(all_terms))), index=all_terms, columns=all_terms)
         update_context_matrix(context_df, hierarchy)
         
-        self.hierarchy = hierarchy
-        self.all_terms = all_terms
-        self.norm2keys = norm2keys
-        self.context_df = context_df
-        self.levels = levels
+        self.__hierarchy = hierarchy
+        self.__all_terms = all_terms
+        self.__norm2keys = norm2keys
+        self.__context_df = context_df
+        self.__levels = levels
         
         return all_terms, norm2keys, context_df
     
@@ -292,11 +288,12 @@ class KeywordsQueryProcessor():
                   sim_threshold=70, 
                   sim_scorer=damerau_levenshtein_scorer):
         
-        if self.hierarchy is None:
+        if self.__hierarchy is None:
             print('Ошибка: для корректной работы сначала нужно применить fit на нужной иерархии!')
+            return
         
-        long_terms = [term for term in self.all_terms if len(term.split()) > 1]
-        short_terms = [term for term in self.all_terms if len(term.split()) == 1]
+        long_terms = [term for term in self.__all_terms if len(term.split()) > 1]
+        short_terms = [term for term in self.__all_terms if len(term.split()) == 1]
         
         if len(query.split()) < 5:
             window = 3
@@ -308,10 +305,9 @@ class KeywordsQueryProcessor():
                                     long_scorer_second=long_scorer_second,
                                     score_cutoff_first=long_score_cutoff_first,
                                     score_cutoff_second=long_score_cutoff_second)
-        print('---', long_terms)
+
 
         short_terms = short_fuzzy_match(query, short_terms, short_scorer=short_scorer, score_cutoff=short_score_cutoff)
-        print('---', short_terms)
 
         chosen_terms = long_terms + short_terms
         print('\nCHOSEN TERMS:', chosen_terms)
@@ -319,20 +315,20 @@ class KeywordsQueryProcessor():
             print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
             return
         
-        if not check_context_compatibility(self.context_df, chosen_terms):
-            if self.similarity_matrix is None or sim_scorer != self.sim_scorer:
-                self.similarity_matrix = pd.DataFrame(np.zeros((len(self.all_terms), len(self.all_terms))), 
-                                                      index=self.all_terms, columns=self.all_terms)
-                self.sim_scorer = sim_scorer
-                update_similarity_matrix(self.similarity_matrix, sim_scorer)
+        if not check_context_compatibility(self.__context_df, chosen_terms):
+            if self.__similarity_matrix is None or sim_scorer != self.__sim_scorer:
+                self.__similarity_matrix = pd.DataFrame(np.zeros((len(self.__all_terms), len(self.__all_terms))), 
+                                                      index=self.__all_terms, columns=self.__all_terms)
+                self.__sim_scorer = sim_scorer
+                update_similarity_matrix(self.__similarity_matrix, sim_scorer)
             
-            chosen_terms = check_similarity_compatibility(self.similarity_matrix, query, chosen_terms, threshold=sim_threshold)
+            chosen_terms = check_similarity_compatibility(self.__similarity_matrix, query, chosen_terms, threshold=sim_threshold)
             
-            if not check_context_compatibility(self.context_df, chosen_terms):
+            if not check_context_compatibility(self.__context_df, chosen_terms):
                 print('Ошибка: Неверный контекст запроса!')
                 return
         print('\nFINAL TERMS:', chosen_terms)
         
-        final_query = build_path(chosen_terms, self.hierarchy, self.norm2keys, self.levels)
+        final_query = build_path(chosen_terms, self.__hierarchy, self.__norm2keys, self.__levels)
         
         return final_query
