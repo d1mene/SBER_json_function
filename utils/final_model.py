@@ -106,7 +106,7 @@ def update_similarity_matrix(values_df, scorer):
     
     return values_df
     
-def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
+def check_similarity_compatibility(similarity_matrix, query, terms, threshold, verbose=True):
     """Функция, разрешающая конфликты между полученными запросами.
 
     Аргументы:
@@ -114,6 +114,7 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
         query (str): исходный запрос
         terms (list): список терминов для проверки
         threshold (int): порог показателя схожести
+        verbose (bool, optional): выводить ли сообщения с логами (по умолчанию выводятся)
 
     Returns:
         list: список терминов с разрешенным конфликтом
@@ -138,7 +139,8 @@ def check_similarity_compatibility(similarity_matrix, query, terms, threshold):
                 scorer_rank = process.extract(query, keys, scorer=damerau_levenshtein_scorer, score_cutoff=0, limit=None)
 
                 if len(scorer_rank) >= 2 and scorer_rank[0][1] - scorer_rank[1][1] < 2:
-                    print('Ошибка: Неоднозначный запрос. Пожалуйста, исправьте опечатки или уточните Ваш запрос.')
+                    if verbose:
+                        print('Ошибка: Неоднозначный запрос. Пожалуйста, исправьте опечатки или уточните Ваш запрос.')
                     return
                 used_list.append(keys)
                 final_terms.append(scorer_rank[0][0])
@@ -286,10 +288,43 @@ class KeywordsQueryProcessor():
                   long_scorer_second=fuzz.token_set_ratio,
                   short_scorer=jaro_winkler_scorer, 
                   sim_threshold=70, 
-                  sim_scorer=damerau_levenshtein_scorer):
+                  sim_scorer=fuzz.partial_token_set_ratio,
+                  verbose=True):
+        
+        """Функция, обрабатывающая входящий query. 
+        Для корректной работы нужно сначала получить all_terms, norm2keys и context_df,
+        используя метод fit_hierarchy на нужной иерархии.
+
+        Аргументы:
+            query (str): входящий запрос для обработки.
+            all_terms (list): список всех значений (нормализованных).
+            norm2keys (dict): словарь "нормализованный ключ - значение".
+            hierarchy (dict): структура, по которой ведется поиск.
+            levels (list): названия уровней.
+            context_df (pd.DataFrame): таблица контекстной допустимости ключей
+            long_score_cutoff_first (int, optional): Порог для первой функции обработки длинных ключей (по умолчанию 70).
+            long_score_cutoff_second (int, optional): Порог для второй функции обработки длинных ключей (по умолчанию 81).
+            short_score_cutoff (int, optional): Порог для функции обработки коротких ключей (по умочланию 90).
+            window (int, optional): Размер окна для обработки длинных ключей (по умолчанию 5).
+            long_scorer_first (func(s1: str, s2: str, score_cutoff=int), optional): 
+                Скорер для первого обхода запроса в поиске длинных ключей (по умолчанию fuzz.partial_token_set_ratio).
+            long_scorer_second (func(s1: str, s2: str, score_cutoff=int), optional): 
+                Скорер для второго обхода запроса в поиске длинных ключей (по умолчанию fuzz.token_set_ratio).
+            short_scorer (func(s1: str, s2: str, score_cutoff=int), optional): 
+                Скорер для обхода запроса в поиске коротких ключей (по умолчанию jaro_winkler_scorer).
+            sim_threshold (int, optional): Порог для меры схожести двух ключей (по умолчанию 70)
+            sim_scorer (func(s1: str, s2: str, score_cutoff=int), optional): 
+                Скорер для функции схожести ключей (по умолчанию damerau_levenshtein_scorer)
+            verbose (bool, optional): выводить ли сообщения с логами (по умолчанию выводятся)
+
+        Возвращает:
+            dict: словарь с заполненными уровнями, если поступил правильный запрос
+            None: пустое значение, если поступил неверный запрос
+        """
         
         if self.__hierarchy is None:
-            print('Ошибка: для корректной работы сначала нужно применить fit на нужной иерархии!')
+            if verbose:
+                print('Ошибка: для корректной работы сначала нужно применить fit на нужной иерархии!')
             return
         
         long_terms = [term for term in self.__all_terms if len(term.split()) > 1]
@@ -310,9 +345,13 @@ class KeywordsQueryProcessor():
         short_terms = short_fuzzy_match(query, short_terms, short_scorer=short_scorer, score_cutoff=short_score_cutoff)
 
         chosen_terms = long_terms + short_terms
-        print('\nCHOSEN TERMS:', chosen_terms)
+        
+        if verbose:
+            print('\nCHOSEN TERMS:', chosen_terms)
+            
         if not chosen_terms:
-            print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
+            if verbose:
+                print('Не найдены ключевые слова. Пожалуйста, уточните Ваш запрос.')
             return
         
         if not check_context_compatibility(self.__context_df, chosen_terms):
@@ -322,12 +361,15 @@ class KeywordsQueryProcessor():
                 self.__sim_scorer = sim_scorer
                 update_similarity_matrix(self.__similarity_matrix, sim_scorer)
             
-            chosen_terms = check_similarity_compatibility(self.__similarity_matrix, query, chosen_terms, threshold=sim_threshold)
+            chosen_terms = check_similarity_compatibility(self.__similarity_matrix, query, chosen_terms, 
+                                                          threshold=sim_threshold, verbose=verbose)
             
             if not check_context_compatibility(self.__context_df, chosen_terms):
-                print('Ошибка: Неверный контекст запроса!')
+                if verbose:
+                    print('Ошибка: Неверный контекст запроса!')
                 return
-        print('\nFINAL TERMS:', chosen_terms)
+        if verbose:
+            print('\nFINAL TERMS:', chosen_terms)
         
         final_query = build_path(chosen_terms, self.__hierarchy, self.__norm2keys, self.__levels)
         
