@@ -1,0 +1,1 @@
+{"long_score_cutoff_first": 63, "long_score_cutoff_second": 90, "sim_threshold": 60, "short_score_cutoff": 91}

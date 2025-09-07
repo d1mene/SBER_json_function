@@ -1,0 +1,234 @@
+/* Общие настройки */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+    overflow: hidden;
+}
+
+/* Экраны */
+.screen {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: opacity 1s ease;
+}
+
+.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Экран загрузки JSON */
+#upload-screen {
+    background: linear-gradient(-45deg, #002b1a, #004d33, #003822, #005a3d);
+    background-size: 400% 400%;
+    animation: gradientShift 20s ease infinite;
+    overflow: hidden;
+}
+
+
+.upload-box {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 40px;
+    border-radius: 12px;
+    border: 2px solid rgba(255,255,255,0.2);
+    width: 400px;
+    text-align: center;
+    z-index: 2;
+    box-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+
+/* --- Белая мерцающая двойная SVG-веточка --- */
+.branch {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    pointer-events: none; /* не мешает клику */
+    filter: blur(1.5px);
+}
+
+/* Коробка загрузки */
+/* .upload-box {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 40px;
+    border-radius: 12px;
+    z-index: 2;
+    position: relative;
+    box-shadow: 0 0 20px rgba(255,255,255,0.3);
+} */
+
+/* Светящаяся мерцающая кривая */
+.decorative-curve {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    stroke: white;
+    stroke-width: 4;
+    fill: none;
+    filter: drop-shadow(0 0 10px white) blur(1px);
+    animation: glowCurve 2s ease-in-out infinite alternate;
+}
+
+@keyframes glowCurve {
+    0% { opacity: 0.7; filter: drop-shadow(0 0 5px white) blur(0.5px); }
+    100% { opacity: 1; filter: drop-shadow(0 0 15px white) blur(2px); }
+}
+
+/* Ошибки */
+.error {
+    color: red;
+    margin-top: 10px;
+}
+
+/* Экран ввода запроса */
+#query-screen {
+    background: linear-gradient(135deg, #0b3d1e, #2ecc71);
+    color: white;
+    position: relative;
+}
+
+.typed-text {
+    font-size: 18px;
+    margin-bottom: 20px;
+    min-height: 24px;
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: 2px solid white;
+}
+
+/* Поля ввода */
+#query-input, #chat-input {
+    padding: 12px 20px;
+    border-radius: 25px;
+    border: none;
+    width: 85%; /* расширено для второго экрана */
+    font-size: 16px;
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.1);
+    color: white;
+    box-shadow: 0 0 10px rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+}
+
+#query-input:focus, #chat-input:focus {
+    outline: none;
+    box-shadow: 0 0 15px #1abc9c;
+    background: rgba(255,255,255,0.2);
+}
+
+/* Кнопки */
+button {
+    padding: 10px 20px;
+    border-radius: 25px;
+    border: none;
+    background-color: #1abc9c;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background-color: #16a085;
+    box-shadow: 0 0 20px #1abc9c;
+}
+
+/* Экран чата */
+#chat-screen {
+    background: linear-gradient(120deg, #0b3d1e, #27ae60, #16a085, #2ecc71);
+    background-size: 400% 400%;
+    animation: gradientAnimation 12s ease infinite;
+    color: white;
+}
+
+/* --- История сообщений, scrollbar и невидимые границы --- */
+#chat-box {
+    border: none; /* невидимые границы */
+    width: 80%;   /* пошире */
+    max-width: 800px;
+    height: 50vh;
+    margin-bottom: 20px;
+    padding: 10px;
+    overflow-y: auto;
+    text-align: left;
+    background: rgba(255,255,255,0.05);
+}
+
+/* Кастомный scrollbar для #chat-box */
+#chat-box::-webkit-scrollbar {
+    width: 10px;
+}
+
+#chat-box::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#chat-box::-webkit-scrollbar-thumb {
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 10px;
+    transition: background-color 0.3s;
+}
+
+#chat-box::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255,255,255,0.6);
+}
+
+/* Сообщения */
+.user-msg {
+    background: #3498db;
+    padding: 8px 12px;
+    border-radius: 12px;
+    margin: 5px 0;
+    display: inline-block;
+    animation: fadeInMsg 0.5s ease;
+}
+
+.bot-msg {
+    background: #2ecc71;
+    padding: 8px 12px;
+    border-radius: 12px;
+    margin: 5px 0;
+    display: inline-block;
+    animation: fadeInMsg 0.5s ease;
+}
+
+/* Анимации градиента */
+@keyframes gradientAnimation {
+    0% {background-position: 0% 50%;}
+    50% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+}
+
+/* Плавные переходы экранов */
+.fade-in {
+    animation: fadeIn 1s forwards;
+}
+
+.fade-out {
+    animation: fadeOut 1s forwards;
+}
+
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+
+@keyframes fadeOut {
+    from {opacity: 1;}
+    to {opacity: 0;}
+}
+
+/* Появление сообщений */
+@keyframes fadeInMsg {
+    from {opacity: 0; transform: translateY(-10px);}
+    to {opacity: 1; transform: translateY(0);}
+}
